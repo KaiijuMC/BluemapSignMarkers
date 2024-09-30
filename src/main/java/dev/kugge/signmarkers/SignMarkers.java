@@ -4,13 +4,13 @@ import de.bluecolored.bluemap.api.BlueMapAPI;
 import de.bluecolored.bluemap.api.BlueMapMap;
 import de.bluecolored.bluemap.api.gson.MarkerGson;
 import de.bluecolored.bluemap.api.markers.MarkerSet;
-import dev.kugge.signmarkers.watcher.SignDestroyWatcher;
 import dev.kugge.signmarkers.watcher.SignWatcher;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,14 +32,64 @@ public class SignMarkers extends JavaPlugin {
             loadWorldMarkerSet(world);
             registerWorld(world);
         }
-        BlueMapAPI.onEnable(api -> webRoot = api.getWebApp().getWebRoot());
+        BlueMapAPI.onEnable(api -> {
+            // This is a path object
+            webRoot = api.getWebApp().getWebRoot();
+            // Add images in resources to webRoot/assets/
+
+            // Target directory for assets
+            Path assetsDir = webRoot.resolve("assets/SignMarkers");
+
+            // Ensure the assets directory exists
+            try {
+                if (!Files.exists(assetsDir)) {
+                    Files.createDirectories(assetsDir);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                return;
+            }
+
+            // Add images from resources to the assets directory
+            try {
+                copyResourceToAssets("house.svg", assetsDir);
+                copyResourceToAssets("monster.svg", assetsDir);
+                copyResourceToAssets("farm.svg", assetsDir);
+                // Add more images as necessary
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
         Bukkit.getPluginManager().registerEvents(new SignWatcher(), this);
-        Bukkit.getPluginManager().registerEvents(new SignDestroyWatcher(), this);
     }
 
     @Override
     public void onDisable() {
         for (World world : Bukkit.getWorlds()) saveWorldMarkerSet(world);
+    }
+
+    /**
+     * Copies a resource image to the webRoot/assets/ directory.
+     *
+     * @param resourceName The name of the resource file (e.g., "image1.png").
+     * @param targetDir    The directory to copy the image to.
+     * @throws IOException If something goes wrong during file operations.
+     */
+    private void copyResourceToAssets(String resourceName, Path targetDir) throws IOException {
+        // Get the resource as an input stream
+        InputStream resourceStream = getClass().getResourceAsStream("/" + resourceName);
+
+        if (resourceStream == null) {
+            throw new IOException("Resource not found: " + resourceName);
+        }
+
+        // Create the target file in the assets directory
+        Path targetFile = targetDir.resolve(resourceName);
+        if (!Files.exists(targetFile)) {
+            // Copy the resource to the target directory
+            Files.copy(resourceStream, targetFile);
+        }
+        resourceStream.close();
     }
 
     private void createFiles() {
@@ -80,15 +130,15 @@ public class SignMarkers extends JavaPlugin {
 
     private void registerWorld(World world) {
         BlueMapAPI.onEnable(api ->
-            api.getWorld(world).ifPresent(blueWorld -> {
-                for (BlueMapMap map : blueWorld.getMaps()) {
-                    String label = "sign-markers-" + world.getName();
-                    MarkerSet set = markerSet.get(world);
-                    if (set == null) set = MarkerSet.builder().label(label).build();
-                    map.getMarkerSets().put(label, set);
-                    markerSet.put(world, set);
-                }
-            })
+                api.getWorld(world).ifPresent(blueWorld -> {
+                    for (BlueMapMap map : blueWorld.getMaps()) {
+                        String label = "sign-markers-" + world.getName();
+                        MarkerSet set = markerSet.get(world);
+                        if (set == null) set = MarkerSet.builder().label(label).build();
+                        map.getMarkerSets().put(label, set);
+                        markerSet.put(world, set);
+                    }
+                })
         );
     }
 }
